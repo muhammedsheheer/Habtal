@@ -1,27 +1,48 @@
 "use client";
+
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 import { Clock } from "lucide-react";
 
 const OTPPage: React.FC = () => {
 	const [otp, setOtp] = useState<string[]>(new Array(6).fill(""));
-	const [error, setError] = useState<string>("");
 	const [timer, setTimer] = useState<number>(60);
 	const router = useRouter();
+	const searchParams = useSearchParams();
+	const email = searchParams.get("email");
+
+	const mutation = useMutation({
+		mutationFn: async (otpData: { otp: string; email: string }) => {
+			const response = await fetch("/api/auth/otp-verify", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(otpData),
+			});
+			if (!response.ok) throw new Error("OTP verification failed!");
+			return response.json();
+		},
+		onSuccess: () => {
+			toast.success("OTP Verified Successfully!");
+			router.replace("/login");
+		},
+		onError: (error) => {
+			const errorMessage = error.message || "Invalid OTP. Please try again.";
+			toast.error(errorMessage);
+		},
+	});
 
 	const handleChange = (value: string, index: number) => {
 		if (!/^\d?$/.test(value)) return;
+
 		const updatedOtp = [...otp];
 		updatedOtp[index] = value;
 		setOtp(updatedOtp);
 
 		if (value && index < otp.length - 1) {
-			const nextInput = document.getElementById(
-				`otp-input-${index + 1}`
-			) as HTMLInputElement | null;
-			nextInput?.focus();
+			document.getElementById(`otp-input-${index + 1}`)?.focus();
 		}
 	};
 
@@ -30,20 +51,19 @@ const OTPPage: React.FC = () => {
 		index: number
 	) => {
 		if (event.key === "Backspace" && !otp[index] && index > 0) {
-			const prevInput = document.getElementById(
-				`otp-input-${index - 1}`
-			) as HTMLInputElement | null;
-			prevInput?.focus();
+			document.getElementById(`otp-input-${index - 1}`)?.focus();
 		}
 	};
 
-	const handleSubmit = () => {
-		if (otp.includes("")) {
-			setError("Please enter the complete OTP.");
+	const handleSubmitOTP = () => {
+		const otpValue = otp.join("");
+
+		if (otpValue.length !== 6) {
+			toast.error("OTP must be 6 digits");
 			return;
 		}
-		setError("");
-		toast.success(`OTP Submitted: ${otp.join("")}`);
+
+		mutation.mutate({ otp: otpValue, email: email! });
 	};
 
 	const handleResendOTP = () => {
@@ -95,41 +115,27 @@ const OTPPage: React.FC = () => {
 					))}
 				</div>
 
-				{error && (
-					<p className="text-red-500 text-sm text-center mb-4">{error}</p>
-				)}
-
 				<button
-					onClick={handleSubmit}
+					onClick={handleSubmitOTP}
 					className="w-full bg-[#4640DE] text-white py-2 rounded-md font-medium hover:bg-blue-700"
 				>
-					Verify OTP
+					{mutation.isPending ? "Verifying..." : "Verify OTP"}
 				</button>
 
-				<div className="flex justify-between items-center mt-4">
-					<button
-						onClick={handleResendOTP}
-						className={`text-[#4640DE] font-medium hover:underline ${
-							timer > 0 ? "opacity-50 cursor-not-allowed" : "opacity-100"
-						}`}
-						disabled={timer > 0}
-					>
-						Resend OTP
-					</button>
-					<div className="flex items-center text-gray-600">
-						<Clock className="mr-2" size={18} />
-						{timer > 0 ? `Resend in ${timer}s` : "Ready to resend"}
-					</div>
-				</div>
-
-				<p className="text-gray-600 text-center mt-6">
-					Entered the wrong details?{" "}
-					<span
-						onClick={() => router.push("/login")}
-						className="text-[#4640DE] font-medium hover:underline cursor-pointer"
-					>
-						Back to Login
-					</span>
+				<p className="text-gray-600 text-center mt-6 flex items-center justify-center gap-2">
+					{timer > 0 ? (
+						<>
+							<Clock size={18} />
+							<span>Resend in {timer}s</span>
+						</>
+					) : (
+						<button
+							onClick={handleResendOTP}
+							className="text-[#4640DE] hover:underline flex items-center gap-2"
+						>
+							<span>Resend OTP</span>
+						</button>
+					)}
 				</p>
 			</div>
 		</div>

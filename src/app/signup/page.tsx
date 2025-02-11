@@ -2,15 +2,80 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useMutation } from "@tanstack/react-query";
+import { FieldValues, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import Image from "next/image";
-import { Eye, EyeOff } from "lucide-react"; // Using lucide-react icons
+import { Eye, EyeOff } from "lucide-react";
 import LeftSide from "@/components/signup/LeftSide";
+import { useRouter } from "next/navigation";
+
+type UserFormData = z.infer<typeof userSchema>;
+type CompanyFormData = z.infer<typeof companySchema>;
+
+const userSchema = z
+	.object({
+		name: z.string().min(3, "Name must be at least 3 characters long"),
+		email: z.string().email("Invalid email format"),
+		password: z.string().min(6, "Password must be at least 6 characters long"),
+		confirmPassword: z.string(),
+	})
+	.refine((data) => data.password === data.confirmPassword, {
+		message: "Passwords do not match",
+		path: ["confirmPassword"],
+	});
+
+const companySchema = z
+	.object({
+		companyName: z.string().min(3, "Company name is required"),
+		email: z.string().email("Invalid email format"),
+		registerNo: z.string().min(3, "Registration number is required"),
+		password: z.string().min(6, "Password must be at least 6 characters long"),
+		confirmPassword: z.string(),
+	})
+	.refine((data) => data.password === data.confirmPassword, {
+		message: "Passwords do not match",
+		path: ["confirmPassword"],
+	});
 
 const SignUp: React.FC = () => {
+	const router = useRouter();
+
 	const [selectedOption, setSelectedOption] = useState<"user" | "company">(
 		"user"
 	);
 	const [showPassword, setShowPassword] = useState<boolean>(false);
+
+	const validationSchema =
+		selectedOption === "user" ? userSchema : companySchema;
+
+	const {
+		register,
+		handleSubmit,
+		formState: { errors },
+	} = useForm<FieldValues>({
+		resolver: zodResolver(validationSchema),
+	});
+
+	const mutation = useMutation({
+		mutationFn: async (formData: UserFormData | CompanyFormData) => {
+			const response = await fetch("/api/auth/signup", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(formData),
+			});
+			if (!response.ok) throw new Error("Signup failed!");
+			return response.json();
+		},
+		onSuccess: (data) => {
+			router.replace(`/otp?email=${data.email}`);
+		},
+	});
+
+	const onSubmit = (data: FieldValues) => {
+		mutation.mutate(data as UserFormData | CompanyFormData);
+	};
 
 	return (
 		<div className="flex flex-col bg-[#fff] lg:flex-row h-full">
@@ -59,17 +124,21 @@ const SignUp: React.FC = () => {
 					)}
 
 					<div className="w-full max-w-md bg-white  p-6">
-						<form>
+						<form onSubmit={handleSubmit(onSubmit)}>
 							{selectedOption === "user" ? (
 								<>
 									<InputField
 										label="Full Name"
-										type="text"
+										name="name"
+										register={register}
+										error={errors.name?.message as string}
 										placeholder="Enter your full name"
 									/>
 									<InputField
 										label="Email"
-										type="email"
+										name="email"
+										register={register}
+										error={errors.email?.message as string}
 										placeholder="Enter your email"
 									/>
 								</>
@@ -77,36 +146,51 @@ const SignUp: React.FC = () => {
 								<>
 									<InputField
 										label="Company Name"
-										type="text"
+										name="companyName"
+										register={register}
+										error={errors.companyName?.message as string}
 										placeholder="Enter your company name"
 									/>
 									<InputField
 										label="Email"
-										type="email"
+										name="email"
+										register={register}
+										error={errors.email?.message as string}
 										placeholder="Enter your email"
 									/>
 									<InputField
 										label="Register No"
-										type="text"
+										name="registerNo"
+										register={register}
+										error={errors.registerNo?.message as string}
 										placeholder="Enter your registration number"
 									/>
 								</>
 							)}
 							<PasswordField
 								label="Password"
+								name="password"
 								showPassword={showPassword}
 								setShowPassword={setShowPassword}
+								register={register}
+								error={errors.password?.message as string}
 								placeholder="Enter your password"
 							/>
 							<PasswordField
 								label="Confirm Password"
+								name="confirmPassword"
 								showPassword={showPassword}
 								setShowPassword={setShowPassword}
+								register={register}
+								error={errors.confirmPassword?.message as string}
 								placeholder="Confirm your password"
 							/>
 
-							<button className="w-full bg-[#4640DE] text-white py-2 rounded-sm font-medium">
-								Sign Up
+							<button
+								type="submit"
+								className="w-full bg-[#4640DE] text-white py-2 rounded-sm font-medium"
+							>
+								{mutation.isPending ? "Signing Up..." : "Sign Up"}
 							</button>
 						</form>
 					</div>
@@ -123,45 +207,55 @@ const SignUp: React.FC = () => {
 	);
 };
 
-// Reusable Input Field Component
 interface InputFieldProps {
 	label: string;
-	type: string;
+	name: string;
+	error?: string;
+	register: any;
 	placeholder: string;
 }
 const InputField: React.FC<InputFieldProps> = ({
 	label,
-	type,
+	name,
+	error,
+	register,
 	placeholder,
 }) => (
 	<div className="mb-4">
 		<label className="block text-gray-600 font-medium mb-1">{label}</label>
 		<input
-			type={type}
+			{...register(name)}
 			className="w-full border rounded-sm px-3 py-2 text-gray-800"
 			placeholder={placeholder}
 		/>
+		{error && <p className="text-red-500 text-sm">{error}</p>}
 	</div>
 );
 
-// Reusable Password Field Component with lucide-react icons
 interface PasswordFieldProps {
 	label: string;
 	showPassword: boolean;
 	setShowPassword: React.Dispatch<React.SetStateAction<boolean>>;
 	placeholder: string;
+	name: string;
+	register: any;
+	error?: string;
 }
 const PasswordField: React.FC<PasswordFieldProps> = ({
 	label,
 	showPassword,
 	setShowPassword,
 	placeholder,
+	name,
+	register,
+	error,
 }) => (
 	<div className="mb-4 relative">
 		<label className="block text-gray-600 font-medium mb-1">{label}</label>
 		<div className="relative">
 			<input
 				type={showPassword ? "text" : "password"}
+				{...register(name)}
 				className="w-full border rounded-sm px-3 py-2 text-gray-800"
 				placeholder={placeholder}
 			/>
@@ -172,6 +266,7 @@ const PasswordField: React.FC<PasswordFieldProps> = ({
 			>
 				{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
 			</button>
+			{error && <p className="text-red-500 text-sm">{error}</p>}
 		</div>
 	</div>
 );

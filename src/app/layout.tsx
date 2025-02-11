@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import AuthProvider from "@/components/SessionProvider";
+
 import {
 	Abel,
 	Epilogue,
@@ -10,6 +12,7 @@ import {
 import "../styles/globals.css";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import Providers from "./provider";
 
 const geistSans = Geist({
 	variable: "--font-geist-sans",
@@ -61,7 +64,9 @@ export default function RootLayout({
 			<body
 				className={`${geistSans.variable} ${geistMono.variable} ${epilogue.variable} ${red_hat_display.variable} ${abel.variable} ${inter.variable} antialiased`}
 			>
-				{children}
+				<AuthProvider>
+					<Providers>{children}</Providers>
+				</AuthProvider>
 				<ToastContainer position="top-right" autoClose={3000} />
 			</body>
 		</html>
