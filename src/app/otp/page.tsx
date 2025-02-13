@@ -14,7 +14,7 @@ const OTPPage: React.FC = () => {
 	const searchParams = useSearchParams();
 	const email = searchParams.get("email");
 
-	const mutation = useMutation({
+	const verifyMutation = useMutation({
 		mutationFn: async (otpData: { otp: string; email: string }) => {
 			const response = await fetch("/api/auth/otp-verify", {
 				method: "POST",
@@ -34,13 +34,32 @@ const OTPPage: React.FC = () => {
 		},
 	});
 
+	const resendMutation = useMutation({
+		mutationFn: async () => {
+			const response = await fetch("/api/auth/resend-otp", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ email }),
+			});
+			const data = await response.json();
+			if (!response.ok) throw new Error(data.error);
+			return data;
+		},
+		onSuccess: () => {
+			setOtp(new Array(6).fill(""));
+			setTimer(60);
+			toast.success("OTP resent successfully.");
+		},
+		onError: () => {
+			toast.error("Failed to resend OTP");
+		},
+	});
+
 	const handleChange = (value: string, index: number) => {
 		if (!/^\d?$/.test(value)) return;
-
 		const updatedOtp = [...otp];
 		updatedOtp[index] = value;
 		setOtp(updatedOtp);
-
 		if (value && index < otp.length - 1) {
 			document.getElementById(`otp-input-${index + 1}`)?.focus();
 		}
@@ -57,19 +76,11 @@ const OTPPage: React.FC = () => {
 
 	const handleSubmitOTP = () => {
 		const otpValue = otp.join("");
-
 		if (otpValue.length !== 6) {
 			toast.error("OTP must be 6 digits");
 			return;
 		}
-
-		mutation.mutate({ otp: otpValue, email: email! });
-	};
-
-	const handleResendOTP = () => {
-		setOtp(new Array(6).fill(""));
-		setTimer(60);
-		toast.success("OTP resent successfully.");
+		verifyMutation.mutate({ otp: otpValue, email: email! });
 	};
 
 	useEffect(() => {
@@ -118,8 +129,9 @@ const OTPPage: React.FC = () => {
 				<button
 					onClick={handleSubmitOTP}
 					className="w-full bg-[#4640DE] text-white py-2 rounded-md font-medium hover:bg-blue-700"
+					disabled={verifyMutation.isPending}
 				>
-					{mutation.isPending ? "Verifying..." : "Verify OTP"}
+					{verifyMutation.isPending ? "Verifying..." : "Verify OTP"}
 				</button>
 
 				<p className="text-gray-600 text-center mt-6 flex items-center justify-center gap-2">
@@ -130,10 +142,11 @@ const OTPPage: React.FC = () => {
 						</>
 					) : (
 						<button
-							onClick={handleResendOTP}
+							onClick={() => resendMutation.mutate()}
 							className="text-[#4640DE] hover:underline flex items-center gap-2"
+							disabled={resendMutation.isPending}
 						>
-							<span>Resend OTP</span>
+							{resendMutation.isPending ? "Resending..." : "Resend OTP"}
 						</button>
 					)}
 				</p>

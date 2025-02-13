@@ -19,7 +19,10 @@ export async function POST(req: NextRequest) {
 		const existingCompany = await CompanyModel.findOne({ email });
 
 		if (existingUser || existingCompany)
-			return Response.json({ error: "Account already exists" });
+			return Response.json(
+				{ error: "Account already exists" },
+				{ status: 409 }
+			);
 
 		const hashedPassword = await argon2.hash(password);
 

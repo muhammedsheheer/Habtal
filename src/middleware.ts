@@ -7,26 +7,32 @@ export default async function middleware(req: NextRequest) {
 
 	if (["/", "/login", "/signup", "/forgot-password"].includes(url.pathname)) {
 		if (token) {
-			if (token.role === "user") {
+			const role = token.role || "user";
+
+			if (role === "user") {
 				return NextResponse.redirect(new URL("/user/dashboard", req.url));
-			} else if (token.role === "employer") {
+			} else if (role === "employer") {
 				return NextResponse.redirect(new URL("/company/dashboard", req.url));
-			} else if (token.role === "admin") {
+			} else if (role === "admin") {
 				return NextResponse.redirect(new URL("/admin/dashboard", req.url));
 			}
 		}
 		return NextResponse.next();
 	}
 
-	if (url.pathname === "/otp" && !url.searchParams.get("email")) {
-		return NextResponse.redirect(new URL("/signup", url.origin));
+	if (url.pathname.startsWith("/otp")) {
+		const email = url.searchParams.get("email");
+		if (!email) {
+			return NextResponse.redirect(new URL("/signup", req.url));
+		}
+		return NextResponse.next();
 	}
 
 	if (!token) {
 		return NextResponse.redirect(new URL("/login", req.url));
 	}
 
-	const role = token.role;
+	const role = token.role || "user";
 
 	if (url.pathname.startsWith("/user") && role !== "user") {
 		return NextResponse.redirect(new URL("/login", req.url));

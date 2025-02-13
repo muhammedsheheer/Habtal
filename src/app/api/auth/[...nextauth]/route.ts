@@ -1,4 +1,4 @@
-import NextAuth, { SessionStrategy } from "next-auth";
+import NextAuth, { Account, Profile } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import dbConnect from "@/lib/dbConnect";
 import UserModel from "@/models/user";
@@ -6,7 +6,7 @@ import CompanyModel from "@/models/company";
 import * as argon2 from "argon2";
 import { JWT } from "next-auth/jwt";
 import { Session } from "next-auth";
-import { signOut } from "next-auth/react";
+import GoogleProvider from "next-auth/providers/google";
 
 type UserRole = "user" | "employer" | "admin";
 
@@ -68,8 +68,48 @@ export const authOptions = {
 				};
 			},
 		}),
+
+		GoogleProvider({
+			clientId: process.env.GOOGLE_CLIENT_ID!,
+			clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+		}),
 	],
 	callbacks: {
+		async signIn({
+			account,
+			profile,
+		}: {
+			account: Account | null;
+			profile?: Profile | undefined;
+		}) {
+			await dbConnect();
+			if (account?.provider === "google") {
+				const company = await CompanyModel.findOne({ email: profile?.email });
+
+				if (company) {
+					throw new Error("Company accounts cannot log in with Google.");
+				}
+
+				let user = await UserModel.findOne({ email: profile?.email });
+				if (user?.role === "admin") {
+					throw new Error("Admin  cannot log in with Google.");
+				}
+				if (!user) {
+					user = await UserModel.create({
+						email: profile?.email,
+						name: profile?.name,
+						provider: "google",
+						role: "user",
+						isVerified: true,
+					});
+					return true;
+				}
+				if (!user.isVerified) {
+					throw new Error("Your account is not verified.");
+				}
+			}
+			return true;
+		},
 		async jwt({ token, user }: { token: CustomJWT; user?: any }) {
 			if (user) {
 				token.role = user.role as UserRole;

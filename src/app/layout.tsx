@@ -13,6 +13,7 @@ import "../styles/globals.css";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Providers from "./provider";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const geistSans = Geist({
 	variable: "--font-geist-sans",
@@ -64,9 +65,11 @@ export default function RootLayout({
 			<body
 				className={`${geistSans.variable} ${geistMono.variable} ${epilogue.variable} ${red_hat_display.variable} ${abel.variable} ${inter.variable} antialiased`}
 			>
-				<AuthProvider>
-					<Providers>{children}</Providers>
-				</AuthProvider>
+				<ErrorBoundary>
+					<AuthProvider>
+						<Providers>{children}</Providers>
+					</AuthProvider>
+				</ErrorBoundary>
 				<ToastContainer position="top-right" autoClose={3000} />
 			</body>
 		</html>

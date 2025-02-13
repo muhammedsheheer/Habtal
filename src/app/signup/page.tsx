@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useMutation } from "@tanstack/react-query";
 import { FieldValues, useForm } from "react-hook-form";
@@ -10,16 +10,30 @@ import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
 import LeftSide from "@/components/signup/LeftSide";
 import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
+import { signIn } from "next-auth/react";
 
 type UserFormData = z.infer<typeof userSchema>;
 type CompanyFormData = z.infer<typeof companySchema>;
 
 const userSchema = z
 	.object({
-		name: z.string().min(3, "Name must be at least 3 characters long"),
-		email: z.string().email("Invalid email format"),
-		password: z.string().min(6, "Password must be at least 6 characters long"),
-		confirmPassword: z.string(),
+		name: z
+			.string()
+			.trim()
+			.min(3, "Name must be at least 3 characters long")
+			.max(50, "Name must be under 50 characters"),
+		email: z.string().trim().email("Invalid email format"),
+		password: z
+			.string()
+			.trim()
+			.min(8, "Password must be at least 8 characters long")
+			.max(50, "Password must be under 50 characters")
+			.regex(/[a-z]/, "Password must contain at least one lowercase letter")
+			.regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+			.regex(/[0-9]/, "Password must contain at least one number")
+			.regex(/[\W_]/, "Password must contain at least one special character"),
+		confirmPassword: z.string().trim(),
 	})
 	.refine((data) => data.password === data.confirmPassword, {
 		message: "Passwords do not match",
@@ -28,11 +42,35 @@ const userSchema = z
 
 const companySchema = z
 	.object({
-		companyName: z.string().min(3, "Company name is required"),
-		email: z.string().email("Invalid email format"),
-		registerNo: z.string().min(3, "Registration number is required"),
-		password: z.string().min(6, "Password must be at least 6 characters long"),
-		confirmPassword: z.string(),
+		companyName: z
+			.string()
+			.trim()
+			.min(3, "Company name is required")
+			.max(50, "Company name must be under 50 characters")
+			.regex(
+				/^[a-zA-Z\s]+$/,
+				"Company name must only contain letters and spaces"
+			),
+
+		email: z.string().trim().email("Invalid email format"),
+
+		registerNo: z
+			.string()
+			.trim()
+			.min(3, "Registration number is required")
+			.max(20, "Registration number must be under 20 characters")
+			.regex(/^[a-zA-Z0-9]+$/, "Registration number must be alphanumeric"),
+
+		password: z
+			.string()
+			.min(8, "Password must be at least 8 characters long")
+			.max(50, "Password must be under 50 characters")
+			.regex(/[a-z]/, "Password must contain at least one lowercase letter")
+			.regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+			.regex(/[0-9]/, "Password must contain at least one number")
+			.regex(/[\W_]/, "Password must contain at least one special character"),
+
+		confirmPassword: z.string().trim(),
 	})
 	.refine((data) => data.password === data.confirmPassword, {
 		message: "Passwords do not match",
@@ -46,6 +84,11 @@ const SignUp: React.FC = () => {
 		"user"
 	);
 	const [showPassword, setShowPassword] = useState<boolean>(false);
+	const [isClient, setIsClient] = useState(false);
+
+	useEffect(() => {
+		setIsClient(true);
+	}, []);
 
 	const validationSchema =
 		selectedOption === "user" ? userSchema : companySchema;
@@ -65,17 +108,34 @@ const SignUp: React.FC = () => {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(formData),
 			});
-			if (!response.ok) throw new Error("Signup failed!");
-			return response.json();
+			const data = await response.json();
+			if (!response.ok) throw new Error(data.error || "Signup failed!");
+			return data;
 		},
 		onSuccess: (data) => {
+			if (!isClient) return;
 			router.replace(`/otp?email=${data.email}`);
 		},
+		onError: (error) => {
+			toast.error(error.message);
+		},
 	});
+
+	const handleGoogleLogin = async () => {
+		if (!isClient) return;
+		const res = await signIn("google", { redirect: false });
+		if (res?.error) {
+			toast.error(res.error);
+		} else {
+			router.push("/user/dashboard");
+		}
+	};
 
 	const onSubmit = (data: FieldValues) => {
 		mutation.mutate(data as UserFormData | CompanyFormData);
 	};
+
+	if (!isClient) return null;
 
 	return (
 		<div className="flex flex-col bg-[#fff] lg:flex-row h-full">
@@ -110,7 +170,10 @@ const SignUp: React.FC = () => {
 					</h2>
 
 					{selectedOption === "user" && (
-						<button className="flex items-center gap-3 bg-white border rounded-sm px-4 py-2 mb-6">
+						<button
+							onClick={handleGoogleLogin}
+							className="flex items-center gap-3 bg-white border rounded-sm px-4 py-2 mb-6"
+						>
 							<Image
 								src="/icons/googleicon.png"
 								alt="Google Logo"

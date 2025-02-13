@@ -11,7 +11,6 @@ const LeftSide: React.FC = () => {
 				alt="Man image"
 				width={500}
 				height={500}
-				priority
 			/>
 		</div>
 	);

@@ -6,7 +6,6 @@ import CompanyModel from "@/models/company";
 
 export async function POST(req: NextRequest) {
 	const { email, otp } = await req.json();
-	console.log(email, otp);
 	if (!email || !otp) {
 		return Response.json({ error: "Email and OTP are required" });
 	}
